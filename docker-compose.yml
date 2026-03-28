@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app/backend
+      FRONTEND_PATH: /app/frontend
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Uncomment when you add a database later ──────────────────────
+  # db:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: password
+  #     POSTGRES_DB: roastmycode
+  #   ports:
+  #     - "5432:5432"

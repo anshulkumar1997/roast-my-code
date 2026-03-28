@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roast My Code 🔥</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <header>
+    <div class="logo">🔥 ROAST<span>MY</span>CODE</div>
+    <p class="tagline">Paste your code. Brace yourself.</p>
+  </header>
+
+  <main>
+    <section class="input-section">
+      <div class="editor-header">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <select id="language" class="lang-select">
+          <option value="auto">auto-detect</option>
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript</option>
+          <option value="typescript">TypeScript</option>
+          <option value="java">Java</option>
+          <option value="go">Go</option>
+          <option value="rust">Rust</option>
+          <option value="c">C</option>
+          <option value="cpp">C++</option>
+          <option value="sql">SQL</option>
+          <option value="bash">Bash</option>
+        </select>
+      </div>
+      <textarea
+        id="code-input"
+        placeholder="// paste your code here and prepare&#10;// to have your feelings hurt"
+        spellcheck="false"
+      ></textarea>
+      <div class="char-count"><span id="char-count">0</span> / 5000</div>
+      <button id="roast-btn" onclick="submitRoast()">
+        <span class="btn-text">ROAST IT 🔥</span>
+        <span class="btn-loading" hidden>ROASTING...</span>
+      </button>
+    </section>
+
+    <section class="result-section" id="result-section" hidden>
+      <div class="result-card roast-card">
+        <div class="card-label">🎤 THE ROAST</div>
+        <p id="roast-text"></p>
+      </div>
+
+      <div class="result-card feedback-card">
+        <div class="card-label">🛠 REAL FEEDBACK</div>
+        <p id="feedback-text"></p>
+      </div>
+
+      <div class="result-card rating-card">
+        <div class="card-label">QUALITY RATING</div>
+        <div class="rating-display">
+          <span id="rating-number">0</span>
+          <span class="rating-denom">/10</span>
+        </div>
+        <div class="rating-bar">
+          <div class="rating-fill" id="rating-fill"></div>
+        </div>
+      </div>
+
+      <button class="reset-btn" onclick="reset()">roast another →</button>
+    </section>
+
+    <div class="error-toast" id="error-toast"></div>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

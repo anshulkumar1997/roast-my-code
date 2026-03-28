@@ -1,0 +1,28 @@
+# Normalize all text files to LF in the repo
+# Git will convert to CRLF on Windows checkout automatically
+* text=auto eol=lf
+
+# Explicitly LF for these (used in Docker/Linux — must stay LF)
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Explicitly handle common text files
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.env text eol=lf
+
+# Binary files — never touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary

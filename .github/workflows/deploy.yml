@@ -1,0 +1,40 @@
+name: CD — Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Option A: Deploy to a Linux VPS via SSH ─────────────────
+      # - name: Deploy via SSH
+      #   uses: appleboy/ssh-action@v1.0.0
+      #   with:
+      #     host: ${{ secrets.SERVER_HOST }}
+      #     username: ${{ secrets.SERVER_USER }}
+      #     key: ${{ secrets.SERVER_SSH_KEY }}
+      #     script: |
+      #       cd /var/www/roast-my-code
+      #       git pull origin main
+      #       pip install -r backend/requirements.txt
+      #       systemctl restart roast-my-code
+
+      # ── Option B: Railway / Render / Fly.io ─────────────────────
+      # Connect your GitHub repo in their dashboard — auto deploys on push.
+      # No extra workflow steps needed.
+
+      # ── Option C: Docker ─────────────────────────────────────────
+      # - name: Build & push Docker image
+      #   run: |
+      #     docker build -t ghcr.io/${{ github.repository }}:${{ github.sha }} .
+      #     docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Confirm deploy
+        run: echo "✅ Deployed ${{ github.sha }} to production"
