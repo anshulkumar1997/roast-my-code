@@ -2,6 +2,7 @@
 Integration tests for the /api/roast endpoint.
 We mock the AI service so tests are fast and don't cost money.
 """
+
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -28,6 +29,7 @@ def mock_roaster():
 
 # ─── Happy path ───────────────────────────────────────────────────────────────
 
+
 def test_health_check():
     res = client.get("/health")
     assert res.status_code == 200
@@ -51,6 +53,7 @@ def test_roast_default_language():
 
 
 # ─── Validation errors ────────────────────────────────────────────────────────
+
 
 def test_roast_rejects_empty_code():
     res = client.post("/api/roast", json={"code": "   "})

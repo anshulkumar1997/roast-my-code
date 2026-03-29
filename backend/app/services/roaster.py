@@ -36,14 +36,13 @@ async def roast_code(code: str, language: str = "auto") -> dict:
         model="gpt-5-nano",
         instructions=SYSTEM_PROMPT,
         input=[
-            
             {
                 "role": "user",
                 "content": f"{lang_hint}Code to roast:\n```\n{code}\n```",
             }
         ],
     )
-    
+
     raw = message.output_text
 
     try:

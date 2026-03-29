@@ -22,9 +22,9 @@ class RoastRequest(BaseModel):
 
 
 class RoastResponse(BaseModel):
-    roast: str       # the funny part
-    feedback: str    # the actually useful part
-    rating: int      # code quality rating 1–10
+    roast: str  # the funny part
+    feedback: str  # the actually useful part
+    rating: int  # code quality rating 1–10
 
 
 # ─── Route ───────────────────────────────────────────────────────────────────
