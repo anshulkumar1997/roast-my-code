@@ -52,18 +52,18 @@ roast-my-code/
 
 ### Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- An [Anthropic API key](https://console.anthropic.com/)
+- An [OpenAI API Key](https://platform.openai.com/api-keys)
 
 ### Run the app
 
 ```bash
 # 1. Clone
-git clone https://github.com/you/roast-my-code.git
+git clone https://github.com/anshulkumar1997/roast-my-code.git
 cd roast-my-code
 
 # 2. Set up your environment variables
 cp .env.example .env
-# Open .env and add your ANTHROPIC_API_KEY
+# Open .env and add your OPENAI_API_KEY
 
 # 3. Build and start
 docker compose up --build
@@ -157,7 +157,7 @@ docker compose exec app bash -c "cd /app/backend && ruff format app tests"
 
 | Variable | Required | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Yes | Get from [console.anthropic.com](https://console.anthropic.com) |
+| `OPENAI_API_KEY` | Yes | Get from [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | `ENVIRONMENT` | No | `development` or `production` (default: `development`) |
 | `PORT` | No | Default: `8000` |
 
