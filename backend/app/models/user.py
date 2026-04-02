@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from bson import ObjectId
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 # ── Helper so Pydantic understands MongoDB's ObjectId ─────────────
