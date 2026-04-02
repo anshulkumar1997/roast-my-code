@@ -2,7 +2,7 @@
 
 Paste any code snippet. Get roasted by AI. Receive real feedback. Learn something.
 
-Built with **FastAPI** (Python backend) + **vanilla HTML/CSS/JS** frontend. Runs entirely in **Docker** — no local Python install needed.
+Built with **FastAPI** + **MongoDB Atlas** + **vanilla HTML/CSS/JS**. Runs entirely in **Docker**.
 
 ---
 
@@ -12,38 +12,43 @@ Built with **FastAPI** (Python backend) + **vanilla HTML/CSS/JS** frontend. Runs
 roast-my-code/
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml          # lint → test on every push/PR
-│   │   └── deploy.yml      # deploy on merge to main
+│   │   ├── ci.yml              # lint → test on every push/PR
+│   │   └── deploy.yml          # deploy on merge to main
 │   └── pull_request_template.md
 │
 ├── backend/
 │   ├── app/
-│   │   ├── main.py             # FastAPI app, middleware, routing
+│   │   ├── main.py             # FastAPI app, startup/shutdown, routing
+│   │   ├── database.py         # MongoDB connection via Motor
 │   │   ├── routers/
-│   │   │   └── roast.py        # POST /api/roast — request/response schemas + route
+│   │   │   ├── roast.py        # POST /api/roast
+│   │   │   └── auth.py         # POST /api/auth/register, /login, GET /me
 │   │   ├── services/
-│   │   │   └── roaster.py      # AI logic — calls Claude, parses JSON response
-│   │   └── middleware/
-│   │       └── errors.py       # Global error handlers
+│   │   │   ├── roaster.py      # AI logic — calls Claude
+│   │   │   └── auth.py         # password hashing + JWT tokens
+│   │   ├── middleware/
+│   │   │   ├── errors.py       # global error handlers
+│   │   │   └── auth.py         # get_current_user dependency
+│   │   └── models/
+│   │       └── user.py         # Pydantic user schemas
 │   ├── tests/
-│   │   └── test_roast.py       # Integration tests (AI is mocked)
-│   ├── requirements.txt        # Production dependencies
-│   ├── requirements-dev.txt    # Dev/test dependencies
-│   └── pyproject.toml          # Ruff + pytest config
+│   │   └── test_roast.py       # integration tests (AI mocked)
+│   ├── requirements.txt        # production dependencies
+│   ├── requirements-dev.txt    # dev/test dependencies
+│   └── pyproject.toml          # ruff + pytest config
 │
 ├── frontend/
-│   ├── templates/
-│   │   └── index.html          # Single page app
+│   ├── templates/index.html    # single page app
 │   └── static/
-│       ├── css/style.css       # Dark terminal aesthetic
-│       └── js/app.js           # fetch API, animations, keyboard shortcuts
+│       ├── css/style.css       # dark terminal aesthetic
+│       └── js/app.js           # auth flow + roast logic
 │
-├── Dockerfile                  # Builds the Python 3.11 app image
-├── docker-compose.yml          # Orchestrates the app (+ db when added)
-├── .dockerignore               # Keeps the image lean
-├── .env.example                # Commit this. NEVER commit .env
-├── .gitignore
-└── CHANGELOG.md
+├── Dockerfile                  # multi-stage: base → dev → prod
+├── docker-compose.yml          # local development
+├── docker-compose.prod.yml     # production
+├── .env.example                # commit this — NEVER commit .env
+├── .gitattributes              # consistent line endings (LF)
+└── .gitignore
 ```
 
 ---
@@ -53,26 +58,52 @@ roast-my-code/
 ### Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 - An [OpenAI API Key](https://platform.openai.com/api-keys)
+- [MongoDB Atlas](https://cloud.mongodb.com/) free cluster (M0)
 
-### Run the app
+### 1. Clone and configure
 
 ```bash
 # 1. Clone
 git clone https://github.com/anshulkumar1997/roast-my-code.git
 cd roast-my-code
 
-# 2. Set up your environment variables
 cp .env.example .env
-# Open .env and add your OPENAI_API_KEY
+# Edit .env — fill in your keys (see Environment Variables below)
+```
 
-# 3. Build and start
+### 2. Run
+
+```bash
 docker compose up --build
 ```
 
-App runs at → http://localhost:8000
-API docs at → http://localhost:8000/docs
+| URL | What's there |
+|---|---|
+| http://localhost:8000 | The app |
+| http://localhost:8000/docs | Auto-generated API docs (Swagger UI) |
+| http://localhost:8000/health | Health check |
 
-That's it. No Python install, no virtual environment, no version conflicts.
+---
+
+## Environment Variables
+
+Copy `.env.example` → `.env` and fill in:
+
+| Variable | Required | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | ✅ | Get from [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `MONGODB_URL` | ✅ | Atlas connection string: `mongodb+srv://user:pass@cluster.mongodb.net/` |
+| `DB_NAME` | No | Database name (default: `roastmycode`) |
+| `JWT_SECRET` | ✅ | Long random string — signs auth tokens |
+| `JWT_ALGORITHM` | No | Default: `HS256` |
+| `JWT_EXPIRE_MINUTES` | No | Default: `30` |
+| `ENVIRONMENT` | No | `development` or `production` |
+| `PORT` | No | Default: `8000` |
+
+> **Generate a strong JWT_SECRET:**
+> ```bash
+> python -c "import secrets; print(secrets.token_hex(32))"
+> ```
 
 ---
 
@@ -80,33 +111,67 @@ That's it. No Python install, no virtual environment, no version conflicts.
 
 | Command | What it does |
 |---|---|
-| `docker compose up --build` | Build image + start (use after changing requirements.txt) |
-| `docker compose up` | Start without rebuilding (faster, for code-only changes) |
+| `docker compose up --build` | Build + start (use after changing requirements.txt) |
+| `docker compose up` | Start without rebuilding |
 | `docker compose down` | Stop everything |
 | `docker compose logs -f` | Stream live logs |
-| `docker compose exec app bash` | Open a shell inside the running container |
+| `docker compose exec app bash` | Shell inside the running container |
 
-> **Live reload is enabled** — code changes in `backend/` and `frontend/` reflect instantly without restarting.
+> **Live reload is on** — changes to `backend/` and `frontend/` reflect instantly.
+
+---
+
+## API Endpoints
+
+### Auth
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/register` | ❌ | Create account, returns JWT |
+| POST | `/api/auth/login` | ❌ | Login, returns JWT |
+| GET | `/api/auth/me` | ✅ | Get current user info |
+
+### Roast
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/roast` | ✅ | Submit code, get roasted |
+
+### Other
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Health check |
+
+**How to authenticate:**
+All protected routes require a JWT token in the `Authorization` header:
+```
+Authorization: Bearer <your-token>
+```
+
+**Example register + roast flow:**
+```bash
+# 1. Register
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "mypassword"}'
+
+# Returns: {"access_token": "eyJ...", "token_type": "bearer"}
+
+# 2. Roast some code (use the token from step 1)
+curl -X POST http://localhost:8000/api/roast \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJ..." \
+  -d '{"code": "x = 1\nprint(x)", "language": "python"}'
+```
 
 ---
 
 ## Running Tests
 
-Tests run inside Docker so the environment matches production exactly:
-
 ```bash
-# Run all tests
+# Inside Docker (recommended)
 docker compose exec app bash -c "cd /app/backend && pytest"
 
-# With coverage report
+# With coverage
 docker compose exec app bash -c "cd /app/backend && pytest --cov=app --cov-report=term-missing"
-```
-
-Or if you prefer locally (requires Python 3.11 + dev deps):
-
-```bash
-pip install -r backend/requirements-dev.txt
-cd backend && pytest
 ```
 
 ---
@@ -114,52 +179,15 @@ cd backend && pytest
 ## Linting & Formatting
 
 ```bash
-# Check for lint errors
-docker compose exec app bash -c "cd /app/backend && ruff check app tests"
+# Check
+docker compose exec app bash -c "ruff check backend/app backend/tests"
 
-# Auto-fix lint errors
-docker compose exec app bash -c "cd /app/backend && ruff check --fix app tests"
+# Fix
+docker compose exec app bash -c "ruff check --fix backend/app backend/tests"
 
-# Format code
-docker compose exec app bash -c "cd /app/backend && ruff format app tests"
+# Format
+docker compose exec app bash -c "ruff format backend/app backend/tests"
 ```
-
----
-
-## API
-
-### `POST /api/roast`
-
-**Request:**
-```json
-{
-  "code": "def foo():\n    x = 1\n    return x",
-  "language": "python"
-}
-```
-
-**Response:**
-```json
-{
-  "roast": "This function is so pointless it makes philosophers question existence.",
-  "feedback": "This function adds no value — inline the value or remove it entirely.",
-  "rating": 3
-}
-```
-
-**Validation:**
-- `code` — required, non-empty, max 5000 characters
-- `language` — optional, defaults to `"auto"`
-
----
-
-## Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | Yes | Get from [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| `ENVIRONMENT` | No | `development` or `production` (default: `development`) |
-| `PORT` | No | Default: `8000` |
 
 ---
 
@@ -172,25 +200,23 @@ feature/* ← your daily work branches
 hotfix/*  ← urgent production fixes
 ```
 
-**Daily flow:**
 ```bash
-git checkout develop
-git checkout -b feature/add-language-detection
+git checkout -b feature/my-feature
 # ...make changes...
 git add .
-git commit -m "feat: add automatic language detection"
-git push origin feature/add-language-detection
+git commit -m "feat: add my feature"
+git push origin feature/my-feature
 # Open Pull Request → develop
 ```
 
-**Commit message convention:**
+**Commit conventions:**
 ```
 feat:     new feature
 fix:      bug fix
 test:     adding/updating tests
-refactor: code change that isn't a fix or feature
+refactor: code cleanup
 docs:     documentation only
-chore:    dependency updates, config changes
+chore:    deps, config changes
 ```
 
 ---
@@ -204,35 +230,53 @@ Push / PR to main or develop
     [Lint & Format]   ← ruff check + ruff format --check
          │
          ▼
-      [Tests]         ← pytest with coverage, AI is mocked
+      [Tests]         ← pytest with coverage (AI mocked)
          │
-    (main only)
+      (main only)
          ▼
-      [Deploy]        ← your deployment step here
+      [Deploy]
 ```
 
-**GitHub Secrets needed** (Settings → Secrets → Actions):
-- `SERVER_HOST` — your server's IP or hostname
-- `SERVER_USER` — SSH username
-- `SERVER_SSH_KEY` — your private SSH key
+**GitHub Secrets to add** (Settings → Secrets → Actions):
+
+| Secret | Value |
+|---|---|
+| `OPENAI_API_KEY` | Your OpenAI key |
+| `MONGODB_URL` | Your Atlas connection string |
+| `JWT_SECRET` | Your JWT secret |
 
 ---
 
-## Adding a New Feature
+## Production Deployment
 
-1. Create a new router in `backend/app/routers/`
-2. Create a service in `backend/app/services/`
-3. Register the router in `main.py`
-4. Write tests in `backend/tests/` — mock external calls
-5. `pytest` → `ruff check` → commit → PR
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Differences from dev:
+- No hot reload
+- 2 uvicorn workers
+- Runs as non-root user
+- No dev dependencies installed
+
+---
+
+## Adding a New Feature — Checklist
+
+1. `git checkout -b feature/your-feature`
+2. Add route in `backend/app/routers/`
+3. Add business logic in `backend/app/services/`
+4. Register router in `main.py`
+5. Write tests in `backend/tests/` — mock external calls
+6. `pytest` → `ruff check` → commit → PR
 
 ---
 
 ## Versioning
 
-`MAJOR.MINOR.PATCH` — see [semver.org](https://semver.org)
+`MAJOR.MINOR.PATCH` — [semver.org](https://semver.org)
 
 ```bash
-git tag -a v1.1.0 -m "feat: add language detection"
+git tag -a v1.1.0 -m "feat: add user auth"
 git push origin v1.1.0
 ```
