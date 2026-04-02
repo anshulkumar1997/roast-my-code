@@ -1,19 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Roast My Code 🔥</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
+
 <body>
   <div class="scanlines"></div>
 
   <header>
     <div class="logo">🔥 ROAST<span>MY</span>CODE</div>
     <p class="tagline">Paste your code. Brace yourself.</p>
+
+    <!-- Auth bar — shows login/register or logged-in user -->
+    <div class="auth-bar">
+      <div id="auth-guest">
+        <button class="auth-link" onclick="openModal('login')">Login</button>
+        <span class="auth-sep">·</span>
+        <button class="auth-link" onclick="openModal('register')">Register</button>
+      </div>
+      <div id="auth-user" hidden>
+        <span id="auth-email"></span>
+        <span class="auth-sep">·</span>
+        <button class="auth-link" onclick="logout()">Logout</button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -34,11 +51,8 @@
           <option value="bash">Bash</option>
         </select>
       </div>
-      <textarea
-        id="code-input"
-        placeholder="// paste your code here and prepare&#10;// to have your feelings hurt"
-        spellcheck="false"
-      ></textarea>
+      <textarea id="code-input" placeholder="// paste your code here and prepare&#10;// to have your feelings hurt"
+        spellcheck="false"></textarea>
       <div class="char-count"><span id="char-count">0</span> / 5000</div>
       <button id="roast-btn" onclick="submitRoast()">
         <span class="btn-text">ROAST IT 🔥</span>
@@ -51,12 +65,10 @@
         <div class="card-label">🎤 THE ROAST</div>
         <p id="roast-text"></p>
       </div>
-
       <div class="result-card feedback-card">
         <div class="card-label">🛠 REAL FEEDBACK</div>
         <p id="feedback-text"></p>
       </div>
-
       <div class="result-card rating-card">
         <div class="card-label">QUALITY RATING</div>
         <div class="rating-display">
@@ -67,13 +79,57 @@
           <div class="rating-fill" id="rating-fill"></div>
         </div>
       </div>
-
       <button class="reset-btn" onclick="reset()">roast another →</button>
     </section>
 
     <div class="error-toast" id="error-toast"></div>
   </main>
 
+  <!-- ── Auth Modal ─────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()"></div>
+  <div class="modal" id="auth-modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+
+    <!-- Login tab -->
+    <div id="modal-login">
+      <h2 class="modal-title">Welcome back</h2>
+      <p class="modal-sub">Login to roast some code</p>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" />
+      </div>
+      <button class="modal-btn" onclick="handleLogin()">Login</button>
+      <p class="modal-switch">
+        No account? <button class="auth-link" onclick="openModal('register')">Register</button>
+      </p>
+    </div>
+
+    <!-- Register tab -->
+    <div id="modal-register" hidden>
+      <h2 class="modal-title">Create account</h2>
+      <p class="modal-sub">Join the roast</p>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="register-email" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label>Password <span class="field-hint">(min 8 characters)</span></label>
+        <input type="password" id="register-password" placeholder="••••••••" />
+      </div>
+      <button class="modal-btn" onclick="handleRegister()">Create account</button>
+      <p class="modal-switch">
+        Have an account? <button class="auth-link" onclick="openModal('login')">Login</button>
+      </p>
+    </div>
+
+    <div class="modal-error" id="modal-error"></div>
+  </div>
+
   <script src="/static/js/app.js"></script>
 </body>
+
 </html>

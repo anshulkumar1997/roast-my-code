@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -6,13 +7,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.database import close_db, connect_db
 from app.middleware.errors import register_error_handlers
-from app.routers import roast
+from app.routers import auth, roast
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await connect_db()
+    yield
+    await close_db()
+
 
 app = FastAPI(
     title="Roast My Code 🔥",
     description="Paste code. Get roasted. Learn something.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
@@ -28,6 +39,7 @@ register_error_handlers(app)
 
 # ─── API routes ──────────────────────────────────────────────────────────────
 app.include_router(roast.router, prefix="/api")
+app.include_router(auth.router)  # prefix already set inside auth.py
 
 # ─── Serve frontend static files ─────────────────────────────────────────────
 # In Docker the WORKDIR is /app, so frontend lands at /app/frontend
