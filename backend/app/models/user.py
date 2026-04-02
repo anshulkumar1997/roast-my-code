@@ -25,6 +25,7 @@ class PyObjectId(ObjectId):
 # ── What gets stored in MongoDB ────────────────────────────────────
 class UserInDB(BaseModel):
     """Represents a user document as stored in the database."""
+
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     email: str
     hashed_password: str
@@ -37,6 +38,7 @@ class UserInDB(BaseModel):
 # ── What we return to the client (never expose hashed_password) ────
 class UserResponse(BaseModel):
     """Safe user shape returned in API responses."""
+
     id: str
     email: str
     is_active: bool

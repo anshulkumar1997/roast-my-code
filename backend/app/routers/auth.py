@@ -1,20 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, field_validator
- 
+
 from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.services.auth import create_access_token, hash_password, verify_password
- 
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
- 
+
 # bcrypt hard limit — passwords longer than this are silently truncated
 # We reject them explicitly so users aren't confused
 BCRYPT_MAX_BYTES = 72
+
 
 # ── Schemas ───────────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
+
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
