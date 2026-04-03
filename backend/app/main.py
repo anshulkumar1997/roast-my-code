@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import close_db, connect_db
+from app.limiter import close_redis, connect_redis
 from app.middleware.errors import register_error_handlers
 from app.routers import auth, roast
 
@@ -15,8 +16,10 @@ from app.routers import auth, roast
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await connect_db()
+    await connect_redis()
     yield
     await close_db()
+    await close_redis()
 
 
 app = FastAPI(

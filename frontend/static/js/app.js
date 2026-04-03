@@ -4,6 +4,54 @@ const getToken = () => localStorage.getItem('token');
 const setToken = t => localStorage.setItem('token', t);
 const removeToken = () => localStorage.removeItem('token');
 
+
+// ── Rate limit countdown ──────────────────────────────────────────
+let countdownInterval = null;
+
+function startRateLimitCountdown(retryAfterSeconds) {
+  const btn = document.getElementById('roast-btn');
+  const btnText = btn.querySelector('.btn-text');
+  const btnLoading = btn.querySelector('.btn-loading');
+
+  btn.disabled = true;
+  btnLoading.hidden = true;
+  btnText.hidden = false;
+
+  let remaining = retryAfterSeconds;
+
+  const update = () => {
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    btnText.textContent = mins > 0
+      ? `LIMIT HIT — ${mins}m ${secs}s`
+      : `LIMIT HIT — ${secs}s`;
+    remaining--;
+
+    if (remaining < 0) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      btn.disabled = false;
+      btnText.textContent = 'ROAST IT 🔥';
+    }
+  };
+
+  update();
+  countdownInterval = setInterval(update, 1000);
+}
+
+function clearRateLimitCountdown() {
+  // Cancel any running countdown and restore the button to normal
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  const btn = document.getElementById('roast-btn');
+  btn.disabled = false;
+  btn.querySelector('.btn-text').textContent = 'ROAST IT 🔥';
+  btn.querySelector('.btn-text').hidden = false;
+  btn.querySelector('.btn-loading').hidden = true;
+}
+
 // ── Auth state ───────────────────────────────────────────────────
 function updateAuthUI(email) {
   const isLoggedIn = !!email;
@@ -78,6 +126,7 @@ async function handleRegister() {
 
     setToken(data.access_token);
     updateAuthUI(email);
+    clearRateLimitCountdown(); // ← new user session, clear any countdown
     closeModal();
     showToast('Welcome! You\'re all set 🔥');
   } catch (err) {
@@ -111,6 +160,7 @@ async function handleLogin() {
 
     setToken(data.access_token);
     updateAuthUI(email);
+    clearRateLimitCountdown(); // ← new user session, clear any countdown
     closeModal();
     showToast('Logged in! Now go roast some code 🔥');
   } catch (err) {
@@ -125,6 +175,8 @@ async function handleLogin() {
 function logout() {
   removeToken();
   updateAuthUI(null);
+  clearRateLimitCountdown(); // ← clear countdown on logout too
+  resetResults();            // ← clear previous roast results
   showToast('Logged out');
 }
 
@@ -142,7 +194,6 @@ async function submitRoast() {
   const code = input.value.trim();
   if (!code) return showError('Paste some code first!');
 
-  // Gate behind auth
   if (!getToken()) {
     openModal('login');
     showError('Login first to roast code!');
@@ -156,38 +207,63 @@ async function submitRoast() {
   btn.querySelector('.btn-text').hidden = true;
   btn.querySelector('.btn-loading').hidden = false;
 
+  let rateLimited = false;
+
   try {
     const res = await fetch('/api/roast', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${getToken()}`,  // send token with every request
+        Authorization: `Bearer ${getToken()}`,
       },
       body: JSON.stringify({ code, language }),
     });
 
-    if (res.status === 401) {
+    // ── Handle rate limit ──────────────────────────────────────
+    if (res.status === 429) {
+      const data = await res.json();
+      const retryAfter = data.retry_after || 60;
+      showError(`Roast limit reached — you get 2 per hour. Try again in ${formatTime(retryAfter)}.`);
+      rateLimited = true;
+      startRateLimitCountdown(retryAfter);
+
+    } else if (res.status === 401) {
       removeToken();
       updateAuthUI(null);
       openModal('login');
       throw new Error('Session expired — please login again');
-    }
 
-    if (!res.ok) {
+    } else if (!res.ok) {
       const err = await res.json();
       throw new Error(err.detail || `Error ${res.status}`);
+
+    } else {
+      const data = await res.json();
+      showResults(data);
     }
 
-    const data = await res.json();
-    showResults(data);
   } catch (err) {
     showError(err.message);
+
   } finally {
-    btn.disabled = false;
-    btn.querySelector('.btn-text').hidden = false;
+    // Always restore the button text/spinner
     btn.querySelector('.btn-loading').hidden = true;
+    btn.querySelector('.btn-text').hidden = false;
+
+    // Only re-enable if NOT rate limited — countdown handles that
+    if (!rateLimited) {
+      btn.disabled = false;
+    }
   }
 }
+// ── Format seconds into human readable ───────────────────────────
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
+}
+
 
 // ── Display results ───────────────────────────────────────────────
 function showResults({ roast, feedback, rating }) {
@@ -212,9 +288,18 @@ function showResults({ roast, feedback, rating }) {
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// ── Reset results ─────────────────────────────────────────────────
+function resetResults() {
+  document.getElementById('result-section').hidden = true;
+  document.getElementById('roast-text').textContent = '';
+  document.getElementById('feedback-text').textContent = '';
+  document.getElementById('rating-number').textContent = '0';
+  document.getElementById('rating-fill').style.width = '0%';
+}
+
 // ── Reset ─────────────────────────────────────────────────────────
 function reset() {
-  document.getElementById('result-section').hidden = true;
+  resetResults();
   input.value = '';
   counter.textContent = '0';
   input.focus();

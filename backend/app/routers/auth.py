@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, field_validator
 
 from app.database import get_db
+from app.limiter import check_rate_limit
 from app.middleware.auth import get_current_user
 from app.services.auth import create_access_token, hash_password, verify_password
 
@@ -38,51 +39,56 @@ class TokenResponse(BaseModel):
 
 
 # ── Register ──────────────────────────────────────────────────────
+
+
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(request: RegisterRequest, db=Depends(get_db)):
-    # Check email not already taken
-    existing = await db["users"].find_one({"email": request.email})
+async def register(request: Request, body: RegisterRequest, db=Depends(get_db)):
+    # Rate limit by IP for register/login (user not authenticated yet)
+    ip = request.client.host if request.client else "unknown"
+    await check_rate_limit(key=f"register:{ip}", limit=3, window_seconds=60)
+
+    existing = await db["users"].find_one({"email": body.email})
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
 
-    if len(request.password) < 8:
+    if len(body.password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password must be at least 8 characters",
         )
 
-    # Hash password — NEVER store plain text
     user_doc = {
-        "email": request.email,
-        "hashed_password": hash_password(request.password),
+        "email": body.email,
+        "hashed_password": hash_password(body.password),
         "is_active": True,
     }
     await db["users"].insert_one(user_doc)
 
-    # Log the user in immediately after registering
-    token = create_access_token({"sub": request.email})
+    token = create_access_token({"sub": body.email})
     return TokenResponse(access_token=token)
 
 
 # ── Login ─────────────────────────────────────────────────────────
 @router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, db=Depends(get_db)):
-    user = await db["users"].find_one({"email": request.email})
+async def login(request: Request, body: LoginRequest, db=Depends(get_db)):
+    # Rate limit login attempts by IP
+    ip = request.client.host if request.client else "unknown"
+    await check_rate_limit(key=f"login:{ip}", limit=5, window_seconds=60)
 
-    # Same vague error for wrong email OR wrong password
-    # Never tell the caller which one was wrong — leaks user existence
+    user = await db["users"].find_one({"email": body.email})
+
     auth_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Incorrect email or password",
     )
 
-    if not user or not verify_password(request.password, user["hashed_password"]):
+    if not user or not verify_password(body.password, user["hashed_password"]):
         raise auth_error
 
-    token = create_access_token({"sub": request.email})
+    token = create_access_token({"sub": body.email})
     return TokenResponse(access_token=token)
 
 
