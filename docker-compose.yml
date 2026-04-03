@@ -11,14 +11,26 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./frontend:/app/frontend
+    depends_on:
+      - redis # app waits for Redis to start first
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # ── Uncomment when you add a database later ──────────────────────
-  # db:
-  #   image: postgres:15
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: password
-  #     POSTGRES_DB: roastmycode
-  #   ports:
-  #     - "5432:5432"
+  redis:
+    image: redis:7-alpine # tiny Alpine-based Redis image
+    ports:
+      - "6379:6379" # expose for local debugging if needed
+    volumes:
+      - redis_data:/data # persist rate limit counters across restarts
+
+volumes:
+  redis_data:
+
+    # ── Uncomment when you add a database later ──────────────────────
+    # db:
+    #   image: postgres:15
+    #   environment:
+    #     POSTGRES_USER: postgres
+    #     POSTGRES_PASSWORD: password
+    #     POSTGRES_DB: roastmycode
+    #   ports:
+    #     - "5432:5432"

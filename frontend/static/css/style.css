@@ -534,3 +534,24 @@ button#roast-btn:disabled {
   min-height: 1rem;
   text-align: center;
 }
+
+/* ── Rate limit state ─────────────────────────────────────────── */
+button#roast-btn:disabled {
+  background: #1a1a1a;
+  border: 1px solid var(--fire);
+  color: var(--fire);
+  cursor: not-allowed;
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+
+  0%,
+  100% {
+    border-color: var(--fire);
+  }
+
+  50% {
+    border-color: var(--fire-dim);
+  }
+}
