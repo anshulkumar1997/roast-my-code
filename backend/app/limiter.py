@@ -1,9 +1,8 @@
 import os
 import time
 
-import redis.asyncio as aioredis
 from fastapi import HTTPException, status
-
+import redis.asyncio as aioredis
 
 # ── Redis connection ──────────────────────────────────────────────
 # In dev, Redis runs in Docker alongside the app
