@@ -2,8 +2,7 @@
 
 Paste any code snippet. Get roasted by AI. Receive real feedback. Learn something.
 
-Built with **FastAPI** + **MongoDB Atlas** + **vanilla HTML/CSS/JS**. Runs entirely in **Docker**.
-
+Built with **FastAPI** + **MongoDB Atlas** + **Redis** + **vanilla HTML/CSS/JS**. Runs entirely in **Docker**. Deployed on **Render**.
 ---
 
 ## Project Structure
@@ -18,21 +17,22 @@ roast-my-code/
 │
 ├── backend/
 │   ├── app/
-│   │   ├── main.py             # FastAPI app, startup/shutdown, routing
-│   │   ├── database.py         # MongoDB connection via Motor
+│   │   ├── main.py             # FastAPI app, lifespan, routing
+│   │   ├── database.py         # MongoDB connection (Motor async)
+│   │   ├── limiter.py          # Redis rate limiting (sliding window, per user)
 │   │   ├── routers/
-│   │   │   ├── roast.py        # POST /api/roast
-│   │   │   └── auth.py         # POST /api/auth/register, /login, GET /me
+│   │   │   ├── roast.py        # POST /api/roast (protected, rate limited)
+│   │   │   └── auth.py         # POST /api/auth/register, /login  GET /me
 │   │   ├── services/
 │   │   │   ├── roaster.py      # AI logic — calls Claude
-│   │   │   └── auth.py         # password hashing + JWT tokens
+│   │   │   └── auth.py         # password hashing (bcrypt) + JWT tokens
 │   │   ├── middleware/
-│   │   │   ├── errors.py       # global error handlers
+│   │   │   ├── errors.py       # global error handlers (incl. 429 with retry_after)
 │   │   │   └── auth.py         # get_current_user dependency
 │   │   └── models/
 │   │       └── user.py         # Pydantic user schemas
 │   ├── tests/
-│   │   └── test_roast.py       # integration tests (AI mocked)
+│   │   └── test_roast.py       # integration tests (AI, DB, Redis all mocked)
 │   ├── requirements.txt        # production dependencies
 │   ├── requirements-dev.txt    # dev/test dependencies
 │   └── pyproject.toml          # ruff + pytest config
@@ -41,13 +41,13 @@ roast-my-code/
 │   ├── templates/index.html    # single page app
 │   └── static/
 │       ├── css/style.css       # dark terminal aesthetic
-│       └── js/app.js           # auth flow + roast logic
+│       └── js/app.js           # auth flow, roast logic, rate limit countdown
 │
-├── Dockerfile                  # multi-stage: base → dev → prod
-├── docker-compose.yml          # local development
-├── docker-compose.prod.yml     # production
-├── .env.example                # commit this — NEVER commit .env
-├── .gitattributes              # consistent line endings (LF)
+├── Dockerfile                  # multi-stage: base → development → production
+├── docker-compose.yml          # local development (app + Redis)
+├── docker-compose.prod.yml     # production (app + Redis, no hot reload)
+├── .env.example                # template — commit this, NEVER commit .env
+├── .gitattributes              # consistent LF line endings
 └── .gitignore
 ```
 
@@ -97,6 +97,7 @@ Copy `.env.example` → `.env` and fill in:
 | `JWT_SECRET` | ✅ | Long random string — signs auth tokens |
 | `JWT_ALGORITHM` | No | Default: `HS256` |
 | `JWT_EXPIRE_MINUTES` | No | Default: `30` |
+| `REDIS_URL` | No | Default: `redis://redis:6379` (Docker sets this automatically) |
 | `ENVIRONMENT` | No | `development` or `production` |
 | `PORT` | No | Default: `8000` |
 
@@ -130,10 +131,10 @@ Copy `.env.example` → `.env` and fill in:
 | POST | `/api/auth/login` | ❌ | Login, returns JWT |
 | GET | `/api/auth/me` | ✅ | Get current user info |
 
-### Roast
-| Method | Path | Auth | Description |
+### Roast (protected + rate limited)
+| Method | Path | Limit | Description |
 |---|---|---|---|
-| POST | `/api/roast` | ✅ | Submit code, get roasted |
+| POST | `/api/roast` | 2/hour per user | Submit code, get roasted |
 
 ### Other
 | Method | Path | Description |
@@ -146,22 +147,41 @@ All protected routes require a JWT token in the `Authorization` header:
 Authorization: Bearer <your-token>
 ```
 
-**Example register + roast flow:**
+**Example flow:**
 ```bash
 # 1. Register
 curl -X POST http://localhost:8000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "you@example.com", "password": "mypassword"}'
-
-# Returns: {"access_token": "eyJ...", "token_type": "bearer"}
-
-# 2. Roast some code (use the token from step 1)
+# → {"access_token": "eyJ...", "token_type": "bearer"}
+ 
+# 2. Roast some code
 curl -X POST http://localhost:8000/api/roast \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer eyJ..." \
   -d '{"code": "x = 1\nprint(x)", "language": "python"}'
 ```
 
+---
+
+## Rate Limiting
+ 
+Rate limits are enforced **per user** (not per IP) using a Redis sliding window:
+ 
+| Endpoint | Limit |
+|---|---|
+| `POST /api/roast` | 2 requests / hour |
+| `POST /api/auth/register` | 3 requests / minute |
+| `POST /api/auth/login` | 5 requests / minute |
+ 
+When a limit is hit, the API returns:
+```json
+HTTP 429 Too Many Requests
+{"detail": "Rate limit exceeded", "retry_after": 3547}
+```
+ 
+The frontend shows a live countdown on the button until the limit resets.
+ 
 ---
 
 ## Running Tests
@@ -173,6 +193,7 @@ docker compose exec app bash -c "cd /app/backend && pytest"
 # With coverage
 docker compose exec app bash -c "cd /app/backend && pytest --cov=app --cov-report=term-missing"
 ```
+Tests mock all external services (AI, MongoDB, Redis) — no real infrastructure needed.
 
 ---
 
@@ -189,6 +210,24 @@ docker compose exec app bash -c "ruff check --fix backend/app backend/tests"
 docker compose exec app bash -c "ruff format backend/app backend/tests"
 ```
 
+---
+
+## Deployment (Render)
+ 
+This app is deployed on [Render](https://render.com) using Docker.
+ 
+### Services on Render
+| Service | Type | Plan |
+|---|---|---|
+| `roast-my-code` | Web Service (Docker) | Free |
+| `roast-redis` | Redis | Free |
+ 
+### Environment variables to set on Render
+All variables from `.env.example` except `REDIS_URL` — Render injects that automatically when you link the Redis service.
+ 
+### Auto-deploy
+Render watches the `main` branch — every merge triggers a new deployment automatically.
+ 
 ---
 
 ## Git Workflow
@@ -230,11 +269,13 @@ Push / PR to main or develop
     [Lint & Format]   ← ruff check + ruff format --check
          │
          ▼
-      [Tests]         ← pytest with coverage (AI mocked)
+      [Tests]         ← pytest (AI, DB, Redis all mocked)
          │
-      (main only)
          ▼
-      [Deploy]
+      (main only)
+         │
+         ▼
+    [Render deploys automatically]
 ```
 
 **GitHub Secrets to add** (Settings → Secrets → Actions):
@@ -245,19 +286,6 @@ Push / PR to main or develop
 | `MONGODB_URL` | Your Atlas connection string |
 | `JWT_SECRET` | Your JWT secret |
 
----
-
-## Production Deployment
-
-```bash
-docker compose -f docker-compose.prod.yml up --build -d
-```
-
-Differences from dev:
-- No hot reload
-- 2 uvicorn workers
-- Runs as non-root user
-- No dev dependencies installed
 
 ---
 
