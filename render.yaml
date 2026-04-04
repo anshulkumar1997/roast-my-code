@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: roast-my-code
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    region: frankfurt
+    plan: free
+    branch: main
+    envVars:
+      - key: PYTHONPATH
+        value: /app/backend
+      - key: FRONTEND_PATH
+        value: /app/frontend
+      - key: ENVIRONMENT
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false          # filled in manually on Render dashboard
+      - key: MONGODB_URL
+        sync: false
+      - key: DB_NAME
+        value: roastmycode
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRE_MINUTES
+        value: "30"
+      - key: REDIS_URL
+        fromService:
+          name: roast-redis
+          type: redis
+          property: connectionString
+
+  - type: redis
+    name: roast-redis
+    region: frankfurt
+    plan: free
+    ipAllowList: []
